@@ -63,7 +63,7 @@ d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
   br=$(git -C "$dir" branch --show-current) || exit 0
   repo=$(sed -E 's#\.git$##; s#^.+[:/]([^/]+/[^/]+)$#\1#' <<<"$(git -C "$dir" config --get remote.origin.url)")
   key=$CACHE/ci.$(md5sum <<<"$repo/$br" | cut -c1-8)
-  if [ ! -s "$key" ] || [ -z "$(find "$key" -newermt '-30 seconds' 2>/dev/null)" ]; then
+  if [ ! -s "$key" ] || [ -z "$(find "$key" -mmin -0.5 2>/dev/null)" ]; then
     timeout 4 gh pr list --repo "$repo" --head "$br" --json number,state,statusCheckRollup > "$key.tmp" 2>/dev/null \
       && mv "$key.tmp" "$key" || { rm -f "$key" "$key.tmp"; exit 0; }
   fi
@@ -85,16 +85,16 @@ d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
   url=$(git -C "$dir" remote get-url origin 2>/dev/null) || exit 0
   repo=$(sed -E 's#\.git$##; s#^.+[:/]([^/]+/[^/]+)$#\1#' <<<"$url")
   case ${repo,,} in
-    *flux*) motor=flux; cmd=(flux get kustomizations -A -o json)
+    *flux*) motor=flux; cli=flux; cmd=(flux get kustomizations -A -o json)
             filtro='[.items[] | select((.spec.source.url // "") | test($r + "(\\.git)?$"; "i")) |
               "\(.metadata.name) \([.status.conditions[]? | select(.type == "Ready")][0].status // "Unknown")"][0] // ""' ;;
-    *)      motor=argocd; cmd=(kubectl get applications -n argocd -o json)
+    *)      motor=argocd; cli=kubectl; cmd=(kubectl get applications -n argocd -o json)
             filtro='[.items[] | select((.spec.source.repoURL // "") | test($r + "(\\.git)?$"; "i")) |
               "\(.metadata.name) \(.status.sync.status // "?")/\(.status.health.status // "?")"][0] // ""' ;;
   esac
-  command -v "$motor" >/dev/null || exit 0
+  command -v "$cli" >/dev/null || exit 0
   key=$CACHE/cd.$(md5sum <<<"$motor/$repo" | cut -c1-8)
-  if [ ! -s "$key" ] || [ -z "$(find "$key" -newermt '-60 seconds' 2>/dev/null)" ]; then
+  if [ ! -s "$key" ] || [ -z "$(find "$key" -mmin -1 2>/dev/null)" ]; then
     if json=$(timeout 4 "${cmd[@]}" 2>/dev/null); then
       line=$(jq -r --arg r "$repo" "$filtro" <<<"$json")
       printf "%s\n" "${line:-ok}" > "$key.tmp" && mv "$key.tmp" "$key" || exit 0
