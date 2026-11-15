@@ -79,44 +79,47 @@ d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
 ) > "$d/ci" 2>/dev/null &
 
 # CD de la app cuyo origen es el repo del cwd: Flux si el repo lleva "flux", ArgoCD en cualquier otro caso.
+# Dos ausencias distintas: clúster inalcanzable (🟡 <motor> sin conexión) y ninguna app que coincida (silencio).
 (
   [ -n "$dir" ] || exit 0
   url=$(git -C "$dir" remote get-url origin 2>/dev/null) || exit 0
   repo=$(sed -E 's#\.git$##; s#^.+[:/]([^/]+/[^/]+)$#\1#' <<<"$url")
   case ${repo,,} in
-    *flux*)
-      key=$CACHE/cd.$(md5sum <<<"flux/$repo" | cut -c1-8)
-      if [ ! -s "$key" ] || [ -z "$(find "$key" -newermt '-60 seconds' 2>/dev/null)" ]; then
-        timeout 4 flux get kustomizations -A -o json 2>/dev/null |
-          jq -r --arg r "$repo" '.items[] | select((.spec.source.url // "") | test($r + "(\\.git)?$"; "i")) |
-            "\(.metadata.name) \([.status.conditions[]? | select(.type == "Ready")][0].status // "Unknown")"' |
-          head -1 > "$key.tmp" \
-          && [ -s "$key.tmp" ] && mv "$key.tmp" "$key" || { rm -f "$key" "$key.tmp"; exit 0; }
-      fi
-      read -r app state < "$key" || exit 0
-      case "$state" in
-        True) t=🟢; s=Ready ;;
-        False) t=🔴; s=Failed ;;
-        *) t=🟡; s=Unknown ;;
-      esac
-      printf '%s %s %s' "$t" "$app" "$s"
-      ;;
-    *)
-      key=$CACHE/cd.$(md5sum <<<"argocd/$repo" | cut -c1-8)
-      if [ ! -s "$key" ] || [ -z "$(find "$key" -newermt '-60 seconds' 2>/dev/null)" ]; then
-        timeout 4 kubectl get applications -n argocd -o json 2>/dev/null |
-          jq -r --arg r "$repo" '.items[] | select((.spec.source.repoURL // "") | test($r + "(\\.git)?$"; "i")) |
-            "\(.metadata.name) \(.status.sync.status // "?")/\(.status.health.status // "?")"' | head -1 > "$key.tmp" \
-          && [ -s "$key.tmp" ] && mv "$key.tmp" "$key" || { rm -f "$key" "$key.tmp"; exit 0; }
-      fi
-      read -r app state < "$key" || exit 0
-      case "$state" in
-        Synced/Healthy) t=🟢 ;;
-        *Degraded*|*Error*|*Failed*) t=🔴 ;;
-        *) t=🟡 ;;
-      esac
-      printf '%s %s %s' "$t" "$app" "$state"
-      ;;
+    *flux*) motor=flux; cmd=(flux get kustomizations -A -o json)
+            filtro='[.items[] | select((.spec.source.url // "") | test($r + "(\\.git)?$"; "i")) |
+              "\(.metadata.name) \([.status.conditions[]? | select(.type == "Ready")][0].status // "Unknown")"][0] // ""' ;;
+    *)      motor=argocd; cmd=(kubectl get applications -n argocd -o json)
+            filtro='[.items[] | select((.spec.source.repoURL // "") | test($r + "(\\.git)?$"; "i")) |
+              "\(.metadata.name) \(.status.sync.status // "?")/\(.status.health.status // "?")"][0] // ""' ;;
+  esac
+  command -v "$motor" >/dev/null || exit 0
+  key=$CACHE/cd.$(md5sum <<<"$motor/$repo" | cut -c1-8)
+  if [ ! -s "$key" ] || [ -z "$(find "$key" -newermt '-60 seconds' 2>/dev/null)" ]; then
+    if json=$(timeout 4 "${cmd[@]}" 2>/dev/null); then
+      line=$(jq -r --arg r "$repo" "$filtro" <<<"$json")
+      printf "%s\n" "${line:-ok}" > "$key.tmp" && mv "$key.tmp" "$key" || exit 0
+    else
+      printf "off\n" > "$key.tmp" && mv "$key.tmp" "$key" || exit 0
+    fi
+  fi
+  read -r app state < "$key" || exit 0
+  case "$app" in
+    off) printf '🟡 %s sin conexión' "$motor" ;;
+    ok) ;; # clúster sano y ninguna app de este repo: sin segmento
+    *) if [ "$motor" = flux ]; then
+         case "$state" in
+           True) printf '🟢 %s Ready' "$app" ;;
+           False) printf '🔴 %s Failed' "$app" ;;
+           *) printf '🟡 %s Unknown' "$app" ;;
+         esac
+       else
+         case "$state" in
+           Synced/Healthy) printf '🟢 %s %s' "$app" "$state" ;;
+           *Degraded*|*Error*|*Failed*) printf '🔴 %s %s' "$app" "$state" ;;
+           *) printf '🟡 %s %s' "$app" "$state" ;;
+         esac
+       fi
+       ;;
   esac
 ) > "$d/cd" 2>/dev/null &
 
