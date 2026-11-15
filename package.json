@@ -1,0 +1,24 @@
+{
+  "name": "claude-consola",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Claude Code en la consola: barra de estado, hook Stop de sugiere y comando /sugiere, con instalador por host.",
+  "license": "MIT",
+  "files": [
+    "paseo-plugin.json",
+    "README.md",
+    "console/",
+    "statusline/",
+    "commands/",
+    "install/"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "^5.9.3"
+  }
+}
