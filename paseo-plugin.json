@@ -1,0 +1,6 @@
+{
+  "id": "claude-consola",
+  "name": "Claude en la consola",
+  "description": "Claude Code en la terminal con lo que ya ves en Paseo: barra de estado (TTL, descuento nocturno, CI y CD ArgoCD/Flux), sugerencia de siguiente mensaje en el hook Stop y comando /sugiere. No pinta UI de Paseo: install/install.sh deja la config del host apuntando a esta copia.",
+  "requirements": { "paseo": ">=0.11.2" }
+}

@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# statusLine de Claude Code: etiqueta del modelo + los segmentos de las píldoras de Paseo. Cada segmento falla en
+# silencio: sin dato, sin segmento. Las URLs de casa no van en el repo: las fija el instalador por host como variables
+# del comando (NEXUS_URL — panel de enrutado, sin ella no hay segmento TTL; SUGIERE_URL es del hook Stop).
+#   TTL  — $NEXUS_URL/session/{sid}, la misma fuente que la píldora paseo-ttl. 🟣 local 🟢 >5min 🟡 ≤5min 🔴 sin caché
+#   🌙   — descuento nocturno Alibaba (22:00–08:00 UTC+8), solo con modelo alibaba-*
+#   CI   — checks del PR abierto de la rama actual del cwd (gh), cache 30 s
+#   CD   — ArgoCD (por defecto) o Flux si el repo del cwd lleva "flux" en el nombre, cache 60 s
+input=$(cat)
+if command -v jq >/dev/null 2>&1; then
+  sid=$(printf '%s' "$input" | jq -r '.session_id // ""')
+  id=$(printf '%s' "$input" | jq -r '.model.id // ""')
+  name=$(printf '%s' "$input" | jq -r '.model.display_name // .model.id // "?"')
+  dir=$(printf '%s' "$input" | jq -r '.workspace.current_dir // empty')
+else
+  sid=""; id=""; name="?"; dir=""
+fi
+re='^(qwen|tooling|or-|alibaba-|q38-|litellm/)'
+shopt -s nocasematch
+if [[ $id =~ $re ]]; then
+  tag="🟢 LOCAL"
+else
+  tag="🔵 ANTHROPIC"
+fi
+
+CACHE=${TMPDIR:-/tmp}/claude-statusline; mkdir -p "$CACHE"
+d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
+
+# TTL (cuenta manda sobre plan)
+(
+  [ -n "$sid" ] && [ -n "${NEXUS_URL:-}" ] || exit 0
+  j=$(curl -sf --max-time 2 "${NEXUS_URL%/}/session/$sid") || exit 0
+  plan=$(jq -r '.plan // ""' <<<"$j")
+  base=$(jq -r 'if .claude.ttl != null then .claude.ttl else .plan_ttl // empty end' <<<"$j")
+  [ -n "$base" ] || { printf '🔴 —'; exit 0; }
+  m=$(( (base + 30) / 60 ))
+  [ "$m" -lt 60 ] && lab="${m}m" || lab="$((m/60))h $((m%60))m"
+  if [ "$plan" = local ]; then tono=🟣
+  elif [ "$base" -le 300 ]; then tono=🟡
+  else tono=🟢; fi
+  printf '%s %s' "$tono" "$lab"
+) > "$d/ttl" 2>/dev/null &
+
+# Descuento Alibaba (ventana y % de la píldora paseo-descuento; hora de facturación UTC+8)
+(
+  [[ ${id,,} == alibaba-* ]] || exit 0
+  pct=; [[ ${id,,} =~ (ds|deepseek) ]] && pct=50
+  [ -z "$pct" ] && [[ ${id,,} =~ (q3[78]|qwen) ]] && pct=40
+  [ -n "$pct" ] || exit 0
+  t8=$(( $(date +%s) + 28800 )); h=$(( t8 / 3600 % 24 ))
+  if [ "$h" -ge 22 ] || [ "$h" -lt 8 ]; then
+    left=$(( (t8/86400*86400 + 8*3600 + (h<8?0:86400)) - t8 ))
+    printf '🌙 -%s%% quedan %sh %sm' "$pct" $((left/3600)) $(( (left%3600+59)/60 ))
+  else
+    left=$(( t8/86400*86400 + 22*3600 - t8 + (h<22?0:86400) ))
+    printf '🌙 en %sh' $(( (left+1800)/3600 ))
+  fi
+) > "$d/desc" 2>/dev/null &
+
+# CI del PR de la rama actual (solo en repo git con PR abierto)
+(
+  [ -n "$dir" ] && git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
+  br=$(git -C "$dir" branch --show-current) || exit 0
+  repo=$(sed -E 's#\.git$##; s#^.+[:/]([^/]+/[^/]+)$#\1#' <<<"$(git -C "$dir" config --get remote.origin.url)")
+  key=$CACHE/ci.$(md5sum <<<"$repo/$br" | cut -c1-8)
+  if [ ! -s "$key" ] || [ -z "$(find "$key" -newermt '-30 seconds' 2>/dev/null)" ]; then
+    timeout 4 gh pr list --repo "$repo" --head "$br" --json number,state,statusCheckRollup > "$key.tmp" 2>/dev/null \
+      && mv "$key.tmp" "$key" || { rm -f "$key" "$key.tmp"; exit 0; }
+  fi
+  [ "$(jq -r '.[0].state // ""' "$key")" = OPEN ] || exit 0
+  n=$(jq -r '.[0].number' "$key")
+  rollup=$(jq '[.[0].statusCheckRollup[] | (.status // .state // "") | ascii_upcase |
+    if . == "SUCCESS" or . == "COMPLETED" or . == "NEUTRAL" or . == "SKIPPED" or . == "SUCCESSFUL" then "ok"
+    elif . == "PENDING" or . == "EXPECTED" or . == "QUEUED" or . == "IN_PROGRESS" or . == "INPROGRESS" or . == "WAITING" or . == "REQUESTED" then "pend"
+    else "fail" end] | group_by(.) | map({(.[0]): length}) | add // {}' "$key")
+  f=$(jq -r '.fail // 0' <<<"$rollup"); p=$(jq -r '.pend // 0' <<<"$rollup")
+  if [ "$f" != 0 ]; then t=🔴; elif [ "$p" != 0 ]; then t=🟡; else t=🟢; fi
+  printf '%s CI #%s' "$t" "$n"
+) > "$d/ci" 2>/dev/null &
+
+# CD de la app cuyo origen es el repo del cwd: Flux si el repo lleva "flux", ArgoCD en cualquier otro caso.
+(
+  [ -n "$dir" ] || exit 0
+  url=$(git -C "$dir" remote get-url origin 2>/dev/null) || exit 0
+  repo=$(sed -E 's#\.git$##; s#^.+[:/]([^/]+/[^/]+)$#\1#' <<<"$url")
+  case ${repo,,} in
+    *flux*)
+      key=$CACHE/cd.$(md5sum <<<"flux/$repo" | cut -c1-8)
+      if [ ! -s "$key" ] || [ -z "$(find "$key" -newermt '-60 seconds' 2>/dev/null)" ]; then
+        timeout 4 flux get kustomizations -A -o json 2>/dev/null |
+          jq -r --arg r "$repo" '.items[] | select((.spec.source.url // "") | test($r + "(\\.git)?$"; "i")) |
+            "\(.metadata.name) \([.status.conditions[]? | select(.type == "Ready")][0].status // "Unknown")"' |
+          head -1 > "$key.tmp" \
+          && [ -s "$key.tmp" ] && mv "$key.tmp" "$key" || { rm -f "$key" "$key.tmp"; exit 0; }
+      fi
+      read -r app state < "$key" || exit 0
+      case "$state" in
+        True) t=🟢; s=Ready ;;
+        False) t=🔴; s=Failed ;;
+        *) t=🟡; s=Unknown ;;
+      esac
+      printf '%s %s %s' "$t" "$app" "$s"
+      ;;
+    *)
+      key=$CACHE/cd.$(md5sum <<<"argocd/$repo" | cut -c1-8)
+      if [ ! -s "$key" ] || [ -z "$(find "$key" -newermt '-60 seconds' 2>/dev/null)" ]; then
+        timeout 4 kubectl get applications -n argocd -o json 2>/dev/null |
+          jq -r --arg r "$repo" '.items[] | select((.spec.source.repoURL // "") | test($r + "(\\.git)?$"; "i")) |
+            "\(.metadata.name) \(.status.sync.status // "?")/\(.status.health.status // "?")"' | head -1 > "$key.tmp" \
+          && [ -s "$key.tmp" ] && mv "$key.tmp" "$key" || { rm -f "$key" "$key.tmp"; exit 0; }
+      fi
+      read -r app state < "$key" || exit 0
+      case "$state" in
+        Synced/Healthy) t=🟢 ;;
+        *Degraded*|*Error*|*Failed*) t=🔴 ;;
+        *) t=🟡 ;;
+      esac
+      printf '%s %s %s' "$t" "$app" "$state"
+      ;;
+  esac
+) > "$d/cd" 2>/dev/null &
+
+wait
+segs=""
+for s in ttl desc ci cd; do v=$(<"$d/$s"); [ -n "$v" ] && segs+="  ·  $v"; done
+printf '%s  ·  %s%s%s' "$tag" "$name" "${dir:+  ·  ${dir##*/}}" "$segs"
