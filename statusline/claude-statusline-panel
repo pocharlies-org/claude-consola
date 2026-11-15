@@ -95,7 +95,7 @@ d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
   command -v "$cli" >/dev/null || exit 0
   key=$CACHE/cd.$(md5sum <<<"$motor/$repo" | cut -c1-8)
   if [ ! -s "$key" ] || [ -z "$(find "$key" -mmin -1 2>/dev/null)" ]; then
-    if json=$(timeout 4 "${cmd[@]}" 2>/dev/null); then
+    if json=$(timeout 8 "${cmd[@]}" 2>/dev/null); then
       line=$(jq -r --arg r "$repo" "$filtro" <<<"$json")
       printf "%s\n" "${line:-ok}" > "$key.tmp" && mv "$key.tmp" "$key" || exit 0
     else
