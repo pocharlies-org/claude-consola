@@ -41,7 +41,9 @@ jq --arg sl "$sl_cmd" --arg sg "$sg_cmd" '
   | .hooks.Stop += [{matcher: "", hooks: [{type: "command", command: $sg, timeout: 30}]}]
 ' "$settings" > "$tmp" && mv "$tmp" "$settings" && trap - EXIT
 
-sed "s#__PLUGIN_DIR__#$dir#g" "$dir/commands/sugiere.md" > ~/.claude/commands/sugiere.md
+# /sugiere lleva también la URL horneada: fuera del clúster (Cloudblue) el default interno es inalcanzable.
+# Con SUGIERE_URL sin definir queda "" → el script usa su default (es falso para ||).
+sed -e "s#__PLUGIN_DIR__#$dir#g" -e "s#__SUGIERE_URL__#${SUGIERE_URL:-}#g" "$dir/commands/sugiere.md" > ~/.claude/commands/sugiere.md
 
 echo "instalado en $settings"
 echo "  statusLine: $sl_cmd"
