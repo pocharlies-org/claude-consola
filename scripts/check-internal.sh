@@ -33,7 +33,7 @@ if [ "${#ficheros[@]}" -gt 0 ]; then
   while IFS= read -r l; do informa "$l (private address)"; done < <(grep -nHE "$IP" -- "${ficheros[@]}" || true)
   while IFS= read -r l; do informa "$l (issue key)"; done < <(grep -nHE "$CLAVE" -- "${ficheros[@]}" | grep -vE "$TECNICO" || true)
   while IFS= read -r l; do informa "$l (lan host)"; done < <(grep -nHE "$LAN" -- "${ficheros[@]}" || true)
-  # package-lock.json (this folder's and paseo-plugin/'s) is generated: its third-party deprecation notices carry maintainers' addresses
+  # package-lock.json is generated: its third-party deprecation notices carry maintainers' addresses
   while IFS= read -r l; do informa "$l (e-mail)"; done < <(grep -nHoE "$CORREO" -- "${ficheros[@]}" | grep -vE '^([^:]*/)?package-lock\.json:' | grep -vE "$PERMITIDO" || true)
   if [ -n "$nombres" ]; then
     while IFS= read -r l; do informa "$l (private name)"; done < <(grep -v '^\s*\(#\|$\)' "$nombres" | grep -nHwiF -f - -- "${ficheros[@]}" || true)
