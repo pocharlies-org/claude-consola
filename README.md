@@ -15,18 +15,18 @@ usa las mismas fuentes que las píldoras de Paseo.
 
 ## Instalación
 
-El plugin se instala en el host y el instalador deja la config de Claude Code apuntando a esa copia. Idempotente:
-vuelve a ejecutarlo tras actualizar y no duplica ni toca entradas ajenas.
+Se clona en el host y el instalador deja la config de Claude Code apuntando a ese clon. Idempotente: vuelve a
+ejecutarlo tras actualizar y no duplica ni toca entradas ajenas.
 
 ```sh
-paseo plugin add git:pocharlies-org/claude-consola   # la rama por defecto del repo es main
-bash ~/.paseo/plugins/.../claude-consola/install/install.sh
+git clone https://github.com/pocharlies-org/claude-consola && cd claude-consola
+bash install/install.sh
 ```
 
-(o clon y `bash install/install.sh` directamente). Requiere `jq`, `node` y `bash`; `kubectl`/`flux`/`gh` opcionales —
-sin ellos, su segmento no aparece.
+Requiere `jq`, `node` y `bash`; `kubectl`/`flux`/`gh` opcionales — sin ellos, su segmento no aparece.
 
-**URLs por host** — el repo no lleva direcciones de casa; el instalador las hornea en los comandos que escribe:
+**URLs por host** — el repo no lleva direcciones de casa; el instalador las hornea en el comando de la barra
+(`NEXUS_URL`) y en el del hook `Stop` (`SUGIERE_URL`); `/sugiere` no las lleva y usa el entorno de Claude Code:
 
 ```sh
 SUGIERE_URL=https://… NEXUS_URL=https://… bash install/install.sh
@@ -43,6 +43,6 @@ y `duplicados.yml` (estándar de la org).
 ## Publicación
 
 Como en los demás plugins de la org (patrón `paseo-agentes`): rama + PR contra `main`, CI verde, squash. Los hosts se
-actualizan volviendo a pasar el instalador desde la copia nueva del plugin.
+actualizan con `git pull` en su clon y volviendo a pasar el instalador.
 
 MIT licensed.

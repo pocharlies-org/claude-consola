@@ -4,7 +4,7 @@
 // de la píldora del composer. Silencioso por diseño, como el plugin: sin transcript, sin modelo real o servicio
 // mudo no hay salida y la sesión no se bloquea.
 import { readFileSync } from "node:fs";
-import { transcriptMessages } from "./transcript.ts";
+import { lastRealModel } from "./transcript.ts";
 
 // Presupuesto del hook: el servicio puede tardar (espera al residente); si pasa, esta vuelta no hay sugerencia.
 const WAIT_MS = 25_000;
@@ -25,7 +25,7 @@ async function main(): Promise<void> {
     return;
   }
   // Sin modelo real (sin turno del asistente, o solo `<synthetic>`) no hay nada que pedir (Dani 22-10, misma regla que el plugin).
-  if (!transcriptMessages(lines).model) return;
+  if (!lastRealModel(lines)) return;
   // Clave de auditoría y caché del servicio: nº de turno (lo que el plugin pasa como seq).
   const turno = lines.filter((l) => l.includes('"type":"user"')).length;
   const base = (process.env.SUGIERE_URL || "http://sugiere.llm.svc:8080").replace(/\/+$/, "");

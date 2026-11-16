@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 const SCRIPT = new URL("../console/sugiere-stop.ts", import.meta.url).pathname;
-const run = (input: string, env: Record<string, string> = {}) =>
-  execFileSync("node", [SCRIPT], { input, encoding: "utf8", env: { ...process.env, SUGIERE_URL: "http://127.0.0.1:1", ...env }, timeout: 30_000 });
+const run = (input: string) =>
+  execFileSync("node", [SCRIPT], { input, encoding: "utf8", env: { ...process.env, SUGIERE_URL: "http://127.0.0.1:1" }, timeout: 30_000 });
 
 test("sin transcript, salida vacía y cero", () => {
   assert.equal(run(JSON.stringify({ session_id: "x" })), "");
