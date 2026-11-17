@@ -6,7 +6,7 @@ import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-export const stateDir = () => join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "claude-consola");
+const stateDir = () => join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "claude-consola");
 
 /** La línea que lee la barra: el TTL de la cuenta manda sobre el del plan, como en la píldora. */
 export function ttlLine(j: { plan?: unknown; plan_ttl?: unknown; claude?: { ttl?: unknown } | null }, nowS: number): string {
