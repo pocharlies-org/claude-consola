@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """vigia.py — el único borde de la barra con lo que cambia fuera de la sesión: CD y CI llegan por eventos, nadie sondea.
 
-Uno por host (flock en <estado>/vigia.lock); lo arranca la barra cuando no está vivo y no tiene más ciclo de vida que el host.
+Uno por host (flock en <estado>/vigia.lock; <estado> = ~/.cache/claude-consola/<host>); lo arranca la barra cuando no está vivo y no tiene más ciclo de vida que el host.
 - CD: un watch de Kubernetes por recurso — Applications de ArgoCD; Kustomizations y GitRepositories de Flux — como el de
   paseo-argocd: lista inicial por sendInitialEvents con bookmark de fin, reanuda por resourceVersion, 410 relista. Escribe
   <estado>/cd-<motor> (`<url del repo>\t<app>\t<estado>` por app) solo cuando cambia lo que pinta la barra, y
@@ -24,7 +24,8 @@ import uuid
 from pathlib import Path
 from urllib.parse import quote
 
-ESTADO = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "claude-consola"
+# Por host: el home puede estar compartido entre máquinas (dos pods con el mismo volumen), el vigía y su estado no.
+ESTADO = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "claude-consola" / socket.gethostname()
 CREDENCIAL = Path("~/.company/synapse/credentials/synapse_pr_watch.rmq.password").expanduser()
 INTERES_S = 86_400  # una rama que la barra no pinta en un día deja de releerse
 REINTENTO_MAX_S = 30

@@ -22,16 +22,17 @@ else
   tag="🔵 ANTHROPIC"
 fi
 
-ESTADO=${XDG_CACHE_HOME:-$HOME/.cache}/claude-consola
+ESTADO=${XDG_CACHE_HOME:-$HOME/.cache}/claude-consola/${HOSTNAME:-$(hostname)}  # por host: el home puede ser compartido
 d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
 
 # El vigía (console/vigia.py, uno por host) es el único que lee el clúster y el bus. Si no vive se arranca suelto y la
 # barra sigue: esta vuelta sin CI/CD, la siguiente ya con lo que él haya escrito.
-# El pid se comprueba por su comando: el fichero sobrevive a un reinicio del host y ese número puede ser ya otro proceso.
+# El pid se comprueba por su comando: el fichero sobrevive a un reinicio del host y ese número puede ser ya otro proceso
+# (un editor con vigia.py abierto, por ejemplo: por eso tiene que ser python).
 vigia=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/console/vigia.py
 pid=$(cat "$ESTADO/vigia.pid" 2>/dev/null)
 case $(ps -p "${pid:-0}" -o args= 2>/dev/null) in
-  *console/vigia.py*) ;;
+  *python*console/vigia.py*) ;;
   *) pid=; ! command -v python3 >/dev/null || ( cd / && nohup python3 "$vigia" >/dev/null 2>&1 & ) ;;
 esac
 

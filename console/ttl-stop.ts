@@ -3,10 +3,11 @@
 // cuenta atrás desde lo que esto deja en `<estado>/ttl/<sid>`: `<plan> <caduca, epoch s>`, o `<plan> -` sin caché.
 // Silencioso por diseño: sin NEXUS_URL, sin sesión o con el panel mudo queda el último valor y la sesión no se bloquea.
 import { mkdirSync, renameSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, hostname } from "node:os";
 import { join } from "node:path";
 
-const stateDir = () => join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "claude-consola");
+// Por host: el home puede estar compartido entre máquinas (dos pods con el mismo volumen), el vigía y su estado no.
+const stateDir = () => join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "claude-consola", hostname());
 
 /** La línea que lee la barra: el TTL de la cuenta manda sobre el del plan, como en la píldora. */
 export function ttlLine(j: { plan?: unknown; plan_ttl?: unknown; claude?: { ttl?: unknown } | null }, nowS: number): string {
