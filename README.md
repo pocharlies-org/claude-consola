@@ -12,7 +12,7 @@ usa las mismas fuentes que las píldoras de Paseo.
 - **Nada sondea.** La barra solo pinta lo que dejan los eventos en `~/.cache/claude-consola/<host>` (por host: el home puede ser compartido entre máquinas): el TTL lo lee el hook
   `Stop` una vez por turno y la barra cuenta atrás; CD y CI los escribe el **vigía** (`console/vigia.py`, uno por host,
   lo arranca la barra si no está vivo), que mantiene un watch de Kubernetes sobre las Applications de ArgoCD (y las
-  Kustomizations y GitRepositories de Flux) y una cola en el bus de Synapse con los webhooks de GitHub: con cada evento
+  Kustomizations, HelmReleases y GitRepositories de Flux) y una cola en el bus de Synapse con los webhooks de GitHub: con cada evento
   de un repo relee con `gh` la PR de las ramas que la barra está mirando. Sin bus no hay segmento CI.
 - **Sugerencia al acabar el turno** (hook `Stop`): si el servicio propone un siguiente mensaje, sale como
   `💡 Sugerencia: …` en el terminal. Silencioso por diseño: servicio mudo, sin turno del asistente o fuera de

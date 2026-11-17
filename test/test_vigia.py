@@ -101,10 +101,29 @@ class CD(Base):
             "status": {"conditions": [{"type": "Ready", "status": "False"}]}}
         self.assertEqual(vigia.lineas("flux", m.objetos), "https://github.com/org/infra-flux\tapps\tFalse\n")
 
+    def test_flux_tambien_despliega_con_helmreleases_cuyo_chart_sale_del_repo(self):
+        m = vigia.Motor("flux")
+        m.objetos["git"][("flux-system", "app-repo")] = {"spec": {"url": "ssh://git@bitbucket.test/team/app.git"}}
+        m.objetos["hr"][("app", "api")] = {
+            "spec": {"chart": {"spec": {"sourceRef": {"kind": "GitRepository", "name": "app-repo", "namespace": "flux-system"}}}},
+            "status": {"conditions": [{"type": "Ready", "status": "True"}]}}
+        m.objetos["hr"][("app", "de-un-helmrepo")] = {"spec": {"chart": {"spec": {"sourceRef": {"kind": "HelmRepository", "name": "x"}}}}}
+        self.assertEqual(vigia.lineas("flux", m.objetos),
+                         "ssh://git@bitbucket.test/team/app.git\tapi\tTrue\n\tde-un-helmrepo\tUnknown\n")
+
+    def test_flux_sin_helm_controller_sigue_pintando_sus_kustomizations(self):
+        m = vigia.Motor("flux", lambda *_: Proc([], error="Error from server (NotFound): the server could not find"),
+                        lambda _s: self.fail("no reintenta un recurso que no existe"))
+        m.vigila("hr")
+        m.listados |= {"ks", "git"}  # los otros dos listaron
+        m._publica()
+        self.assertEqual(self.leer("cd-flux.estado"), "ok\n")
+
     def test_un_cluster_sin_flux_deja_el_motor_en_no_y_no_reintenta(self):
         m = vigia.Motor("flux", lambda *_: Proc([], error='Error from server (NotFound): the server could not find'),
                         lambda _s: self.fail("no reintenta un recurso que no existe"))
-        m.vigila("ks")
+        for tipo in vigia.RECURSOS["flux"]:
+            m.vigila(tipo)
         self.assertEqual(self.leer("cd-flux.estado"), "no\n")
 
     def test_sin_kubectl_el_motor_queda_en_no(self):
