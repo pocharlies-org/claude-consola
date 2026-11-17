@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFile, execFileSync, spawn } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { ttlLine } from "../console/ttl-stop.ts";
@@ -17,8 +17,8 @@ after(() => falso.kill());
 /** Un estado de la consola vacío, con el vigía de mentira como vivo. */
 function cacheVacia(): string {
   const cache = mkdtempSync(join(tmpdir(), "consola-ttl-"));
-  mkdirSync(join(cache, "claude-consola"));
-  writeFileSync(join(cache, "claude-consola/vigia.pid"), `${falso.pid}\n`);
+  mkdirSync(join(cache, "claude-consola", hostname()), { recursive: true });
+  writeFileSync(join(cache, "claude-consola", hostname(), "vigia.pid"), `${falso.pid}\n`);
   return cache;
 }
 
@@ -58,9 +58,9 @@ test("la barra no hace red para el TTL: sin fichero, sin segmento; caducado, �
   const pinta = () =>
     execFileSync("bash", [BARRA], { input: JSON.stringify({ session_id: "s-2", model: { id: "x" } }), env, encoding: "utf8" });
   assert.doesNotMatch(pinta(), /🔴|🟢|🟡|🟣/);
-  mkdirSync(join(cache, "claude-consola/ttl"), { recursive: true });
-  writeFileSync(join(cache, "claude-consola/ttl/s-2"), `claude ${Math.round(Date.now() / 1000) - 5}\n`);
+  mkdirSync(join(cache, "claude-consola", hostname(), "ttl"), { recursive: true });
+  writeFileSync(join(cache, "claude-consola", hostname(), "ttl/s-2"), `claude ${Math.round(Date.now() / 1000) - 5}\n`);
   assert.match(pinta(), /🔴 —/);
-  writeFileSync(join(cache, "claude-consola/ttl/s-2"), `local ${Math.round(Date.now() / 1000) + 240}\n`);
+  writeFileSync(join(cache, "claude-consola", hostname(), "ttl/s-2"), `local ${Math.round(Date.now() / 1000) + 240}\n`);
   assert.match(pinta(), /🟣 4m/);
 });

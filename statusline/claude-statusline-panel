@@ -22,7 +22,7 @@ else
   tag="🔵 ANTHROPIC"
 fi
 
-ESTADO=${XDG_CACHE_HOME:-$HOME/.cache}/claude-consola
+ESTADO=${XDG_CACHE_HOME:-$HOME/.cache}/claude-consola/${HOSTNAME:-$(hostname)}  # por host: el home puede ser compartido
 d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
 
 # El vigía (console/vigia.py, uno por host) es el único que lee el clúster y el bus. Si no vive se arranca suelto y la

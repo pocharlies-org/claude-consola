@@ -12,7 +12,7 @@ servicio sugiere, la del panel de enrutado) no va en el repo: el instalador lo h
 
 | Componente | Qué hace | Lo dispara |
 |---|---|---|
-| `statusline/claude-statusline-panel` | Pinta la barra con lo que hay en `~/.cache/claude-consola`. No lee red ni clúster | Claude Code, en cada cambio de la conversación |
+| `statusline/claude-statusline-panel` | Pinta la barra con lo que hay en `~/.cache/claude-consola/<host>` (por host: dos máquinas pueden compartir home). No lee red ni clúster | Claude Code, en cada cambio de la conversación |
 | `console/ttl-stop.ts` | Lee el TTL de la ruta del panel (`$NEXUS_URL/session/{sid}`) y deja `ttl/<sid>` = plan y caducidad | Hook `Stop` (una vez por turno) |
 | `console/sugiere-stop.ts` | Pide la sugerencia de siguiente mensaje al servicio sugiere | Hook `Stop` y `/sugiere` |
 | `console/vigia.py` | El único borde con el clúster y el bus. Uno por host (flock); escribe `cd-<motor>`, `ci/<clave>` y sus `.estado` | Lo arranca la barra si su pid no es un vigía vivo |
