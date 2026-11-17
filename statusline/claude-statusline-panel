@@ -4,7 +4,7 @@
 #   TTL  — lo escribe el hook Stop (console/ttl-stop.ts) una vez por turno. 🟣 local 🟢 >5min 🟡 ≤5min 🔴 sin caché
 #   🌙   — descuento nocturno Alibaba (22:00–08:00 UTC+8), solo con modelo alibaba-*: reloj puro, sin E/S
 #   CI   — checks del PR abierto de la rama actual del cwd: el vigía los relee con cada evento de GitHub del bus
-#   CD   — ArgoCD (por defecto) o Flux si el repo del cwd lleva "flux" en el nombre: el watch del vigía
+#   CD   — Flux si una GitRepository de Flux apunta al repo del cwd, si no ArgoCD: el watch del vigía
 input=$(cat)
 if command -v jq >/dev/null 2>&1; then
   sid=$(printf '%s' "$input" | jq -r '.session_id // ""')
@@ -86,26 +86,28 @@ esac
   printf '%s CI #%s' "$t" "$n"
 ) > "$d/ci" 2>/dev/null &
 
-# CD de la app cuyo origen es el repo del cwd: Flux si el repo lleva "flux", ArgoCD en cualquier otro caso. Lo escribe el
-# watch del vigía. Dos ausencias distintas: watch caído (🟡 <motor> sin conexión) y ninguna app que coincida (silencio).
+# CD del repo del cwd. Lo decide el clúster, no el nombre: Flux si una GitRepository de Flux apunta al repo, si no la
+# Application de ArgoCD que lo despliega. Lo escribe el watch del vigía. De varias apps del mismo repo sale la primera que
+# no está bien. Ausencias: watch caído (🟡 <motor> sin conexión) y ninguna app de este repo (silencio).
 (
   [ -n "$dir" ] || exit 0
   url=$(git -C "$dir" remote get-url origin 2>/dev/null) || exit 0
   repo=$(sed -E 's#\.git$##; s#^.+[:/]([^/]+/[^/]+)$#\1#' <<<"$url")
-  case $repo in *flux*) motor=flux ;; *) motor=argocd ;; esac
-  read -r est _ < "$ESTADO/cd-$motor.estado" 2>/dev/null || exit 0
-  case "$est" in
-    ok) ;;
-    caido) printf '🟡 %s sin conexión' "$motor"; exit 0 ;;
-    *) exit 0 ;; # sin cliente del clúster o el clúster no sirve ese motor
-  esac
-  IFS=$'\t' read -r _ app state < <(awk -F'\t' -v r="$repo" 'tolower($1) ~ tolower(r) "(\\.git)?$" { print; exit }' \
-    "$ESTADO/cd-$motor" 2>/dev/null) || exit 0 # ninguna app de este repo: sin segmento
+  hallado=; caido=
+  for motor in flux argocd; do
+    read -r est _ < "$ESTADO/cd-$motor.estado" 2>/dev/null || continue
+    [ "$est" = caido ] && caido=${caido:-$motor}
+    [ "$est" = ok ] || continue # sin cliente del clúster o el clúster no sirve ese motor
+    IFS=$'\t' read -r _ app state < <(awk -F'\t' -v r="$repo" '
+      tolower($1) ~ tolower(r) "(\\.git)?$" { if ($3 != "True" && $3 != "Synced/Healthy") { print; mal = 1; exit } if (!p) p = $0 }
+      END { if (!mal && p) print p }' "$ESTADO/cd-$motor" 2>/dev/null) && { hallado=1; break; }
+  done
+  [ -n "$hallado" ] || { [ -z "$caido" ] || printf '🟡 %s sin conexión' "$caido"; exit 0; }
   if [ "$motor" = flux ]; then
     case "$state" in
       True) printf '🟢 %s Ready' "$app" ;;
       False) printf '🔴 %s Failed' "$app" ;;
-      *) printf '🟡 %s Unknown' "$app" ;;
+      *) printf '🟡 %s Reconciling' "$app" ;; # Ready Unknown: Flux está reconciliando
     esac
   else
     case "$state" in

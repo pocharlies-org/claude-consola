@@ -6,8 +6,9 @@ usa las mismas fuentes que las píldoras de Paseo.
 
 - **Barra de estado** (`statusLine`): etiqueta del modelo (🟢 LOCAL / 🔵 ANTHROPIC), TTL de la ruta (🟣 local 🟢 >5 min
   🟡 ≤5 min 🔴 sin caché), descuento nocturno de Alibaba 🌙 (solo con modelo `alibaba-*`), CI del PR de la rama actual
-  y CD — ArgoCD por defecto, Flux si el repo del `cwd` lleva `flux` en el nombre. Cada segmento falla en silencio: sin
-  dato, sin segmento.
+  y CD — lo decide el clúster: Flux si una GitRepository de Flux apunta al repo del `cwd` (🟢 Ready, 🔴 Failed,
+  🟡 Reconciling), si no la Application de ArgoCD que lo despliega; de varias apps del mismo repo, la primera que no está
+  bien. Cada segmento falla en silencio: sin dato, sin segmento.
 - **Nada sondea.** La barra solo pinta lo que dejan los eventos en `~/.cache/claude-consola/<host>` (por host: el home puede ser compartido entre máquinas): el TTL lo lee el hook
   `Stop` una vez por turno y la barra cuenta atrás; CD y CI los escribe el **vigía** (`console/vigia.py`, uno por host,
   lo arranca la barra si no está vivo), que mantiene un watch de Kubernetes sobre las Applications de ArgoCD (y las
