@@ -33,7 +33,9 @@ vigia=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/console/vigia.py
 pid=$(cat "$ESTADO/vigia.pid" 2>/dev/null)
 case $(ps -p "${pid:-0}" -o args= 2>/dev/null) in
   *python*console/vigia.py*) ;;
-  *) pid=; ! command -v python3 >/dev/null || ( cd / && nohup python3 "$vigia" >/dev/null 2>&1 & ) ;;
+  # La subshell también suelta la salida de la barra: con el /bin/bash 3.2 de macOS se queda viva de padre del vigía, y
+  # con el stdout heredado quien lee la barra (Claude Code, un $(…)) no veía nunca el final.
+  *) pid=; ! command -v python3 >/dev/null || ( cd / && nohup python3 "$vigia" >/dev/null 2>&1 & ) </dev/null >/dev/null 2>&1 ;;
 esac
 
 # TTL: lo deja el hook Stop una vez por turno (console/ttl-stop.ts); aquí solo se cuenta atrás, sin red.
