@@ -18,7 +18,7 @@ const hayJq = existsSync("/usr/bin/jq") || (() => {
 test("el instalador hornea SUGIERE_URL y la ruta del plugin en el /sugiere instalado", { skip: !hayJq && "jq no disponible" }, () => {
   const home = mkdtempSync(join(tmpdir(), "consola-inst-"));
   execFileSync("bash", [join(REPO, "install/install.sh")], {
-    env: { ...process.env, HOME: home, SUGIERE_URL: "http://127.0.0.1:18099" },
+    env: { ...process.env, HOME: home, SUGIERE_URL: "http://127.0.0.1:18099", NEXUS_URL: "" },
   });
   const cmd = readFileSync(join(home, ".claude/commands/sugiere.md"), "utf8");
   assert.match(cmd, /SUGIERE_URL="http:\/\/127\.0\.0\.1:18099"/);
@@ -34,4 +34,16 @@ test("sin SUGIERE_URL el comando queda con la URL vacía (el script usa su defau
   delete env.SUGIERE_URL;
   execFileSync("bash", [join(REPO, "install/install.sh")], { env });
   assert.match(readFileSync(join(home, ".claude/commands/sugiere.md"), "utf8"), /SUGIERE_URL=""/);
+});
+
+test("con NEXUS_URL el TTL va en su propio hook Stop y la barra ya no la lleva", { skip: !hayJq && "jq no disponible" }, () => {
+  const home = mkdtempSync(join(tmpdir(), "consola-inst-"));
+  const env = { ...process.env, HOME: home, NEXUS_URL: "http://127.0.0.1:18098/api/session-routing" };
+  execFileSync("bash", [join(REPO, "install/install.sh")], { env });
+  execFileSync("bash", [join(REPO, "install/install.sh")], { env }); // idempotente: no duplica
+  const settings = JSON.parse(readFileSync(join(home, ".claude/settings.json"), "utf8"));
+  const stop = settings.hooks.Stop.flatMap((h: { hooks: Array<{ command: string }> }) => h.hooks.map((c) => c.command));
+  assert.equal(stop.filter((c: string) => c.includes("ttl-stop.ts")).length, 1);
+  assert.match(stop.find((c: string) => c.includes("ttl-stop.ts")), /NEXUS_URL='http:\/\/127\.0\.0\.1:18098\/api\/session-routing'/);
+  assert.doesNotMatch(settings.statusLine.command, /NEXUS_URL/);
 });

@@ -27,6 +27,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
       - run: npm test
+      - name: Vigía (python)
+        run: python3 -m unittest discover -s test -p 'test_*.py'
 
       - name: Shell scripts parse
         run: bash -n statusline/claude-statusline-panel install/install.sh
