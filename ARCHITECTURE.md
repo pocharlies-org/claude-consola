@@ -19,11 +19,12 @@ servicio sugiere, la del panel de enrutado) no va en el repo: el instalador lo h
 
 ## El vigía
 
-- **CD**: un watch de Kubernetes por recurso (`kubectl get --raw …?watch=1`): Applications de ArgoCD; Kustomizations y
-  GitRepositories de Flux, unidas por `sourceRef`. Misma semántica que el watch del plugin paseo-argocd: lista inicial por
+- **CD**: un watch de Kubernetes por recurso (`kubectl get --raw …?watch=1`): Applications de ArgoCD; Kustomizations,
+  HelmReleases y GitRepositories de Flux, unidas por su `sourceRef` (el del chart en las HelmReleases); un recurso que el
+  clúster no sirve cuenta como vacío. Misma semántica que el watch del plugin paseo-argocd: lista inicial por
   `sendInitialEvents` con bookmark de fin, reanuda por `resourceVersion`, un 410 relista y quita lo borrado mientras no
   estaba. Solo escribe cuando cambia lo que pinta la barra: el reconcile que reescribe el objeto no cuenta. Un recurso
-  que el clúster no sirve (`NotFound`) deja su motor en `no` y no se reintenta.
+  que el clúster no sirve (`NotFound`) no se reintenta; si no sirve ninguno de los de un motor, el motor queda en `no`.
 - **CI**: una cola exclusiva y auto-delete `pr-watch.consola.<host>.<uuid>` en el exchange `events` de Synapse, enlazada a
   `webhook.github.received` con el usuario RabbitMQ de pr-watch (su permiso es exactamente ese: crear colas `pr-watch.*`
   y enlazar esa clave). Con cada evento de un repo (`pull_request`, `workflow_run`, `check_suite`, `check_run`, `status`)

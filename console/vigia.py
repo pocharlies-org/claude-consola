@@ -2,10 +2,10 @@
 """vigia.py — el único borde de la barra con lo que cambia fuera de la sesión: CD y CI llegan por eventos, nadie sondea.
 
 Uno por host (flock en <estado>/vigia.lock; <estado> = ~/.cache/claude-consola/<host>); lo arranca la barra cuando no está vivo y no tiene más ciclo de vida que el host.
-- CD: un watch de Kubernetes por recurso — Applications de ArgoCD; Kustomizations y GitRepositories de Flux — como el de
+- CD: un watch de Kubernetes por recurso — Applications de ArgoCD; Kustomizations, HelmReleases y GitRepositories de Flux — como el de
   paseo-argocd: lista inicial por sendInitialEvents con bookmark de fin, reanuda por resourceVersion, 410 relista. Escribe
   <estado>/cd-<motor> (`<url del repo>\t<app>\t<estado>` por app) solo cuando cambia lo que pinta la barra, y
-  <estado>/cd-<motor>.estado: `ok`, `caido <por qué>` o `no` (sin kubectl o el clúster no sirve ese recurso).
+  <estado>/cd-<motor>.estado: `ok`, `caido <por qué>` o `no` (sin kubectl o el clúster no sirve ninguno de sus recursos).
 - CI: una cola propia en el bus de Synapse (`webhook.github.received`, la misma entrada de GitHub que despierta al
   supervisor) con el usuario de pr-watch. Con cada evento de un repo relee con gh la PR de las ramas de ese repo que la
   barra está mirando (<estado>/ci/<clave>.rama) y la deja en <estado>/ci/<clave>; <estado>/ci.estado dice si hay bus.
@@ -36,6 +36,7 @@ RECURSOS = {
     "argocd": {"app": "/apis/argoproj.io/v1alpha1/namespaces/argocd/applications"},
     "flux": {
         "ks": "/apis/kustomize.toolkit.fluxcd.io/v1/kustomizations",
+        "hr": "/apis/helm.toolkit.fluxcd.io/v2/helmreleases",
         "git": "/apis/source.toolkit.fluxcd.io/v1/gitrepositories",
     },
 }
@@ -59,9 +60,13 @@ def lineas(motor: str, objetos: dict) -> str:
             estado = f"{(st.get('sync') or {}).get('status') or '?'}/{(st.get('health') or {}).get('status') or '?'}"
             filas.append((nombre, ((o.get("spec") or {}).get("source") or {}).get("repoURL") or "", estado))
     else:
+        # Flux despliega un repo con Kustomizations (spec.sourceRef) o con HelmReleases cuyo chart sale de él (spec.chart.spec.sourceRef).
         urls = {k: ((o.get("spec") or {}).get("url") or "") for k, o in objetos["git"].items()}
-        for (ns, nombre), o in objetos["ks"].items():
-            ref = (o.get("spec") or {}).get("sourceRef") or {}
+        desplegados = [(k, o, (o.get("spec") or {}).get("sourceRef")) for k, o in objetos["ks"].items()]
+        desplegados += [(k, o, (((o.get("spec") or {}).get("chart") or {}).get("spec") or {}).get("sourceRef"))
+                        for k, o in objetos["hr"].items()]
+        for (ns, nombre), o, ref in desplegados:
+            ref = ref or {}
             url = urls.get((ref.get("namespace") or ns, ref.get("name"))) if ref.get("kind") == "GitRepository" else None
             listo = [c for c in (o.get("status") or {}).get("conditions") or [] if c.get("type") == "Ready"]
             filas.append((nombre, url or "", listo[0].get("status", "Unknown") if listo else "Unknown"))
@@ -81,6 +86,7 @@ class Motor:
         self.motor, self.abre, self.espera = motor, abre, espera
         self.objetos = {tipo: {} for tipo in RECURSOS[motor]}
         self.caidos: dict[str, str] = {}
+        self.ausentes: set[str] = set()  # recursos que este clúster no sirve (o no hay kubectl): cuentan como listados y vacíos
         self.listados: set[str] = set()
         self.cerrojo = threading.Lock()
         self.escrito = self.estado = None
@@ -88,9 +94,11 @@ class Motor:
     def _publica(self) -> None:
         # Hasta que cada recurso haya listado, la barra no ve nada: un join a medias pintaría apps sin repo.
         with self.cerrojo:
-            if self.caidos:
-                estado = "no" if "no" in self.caidos.values() else f"caido {next(iter(self.caidos.values()))}"
-            elif self.listados == set(self.objetos):
+            if self.ausentes == set(self.objetos):
+                estado = "no"
+            elif self.caidos:
+                estado = f"caido {next(iter(self.caidos.values()))}"
+            elif self.listados | self.ausentes == set(self.objetos):
                 estado = "ok"
                 texto = lineas(self.motor, self.objetos)
                 if texto != self.escrito:
@@ -109,7 +117,7 @@ class Motor:
             try:
                 proc = self.abre(ruta, f"watch=1&allowWatchBookmarks=true{desde}")
             except FileNotFoundError:
-                self.caidos[tipo] = "no"
+                self.ausentes.add(tipo)
                 return self._publica()
             nuevos: set = set()
             for texto in proc.stdout:
@@ -143,7 +151,7 @@ class Motor:
             error = (proc.stderr.read() if proc.stderr else "").strip()
             proc.wait()
             if "NotFound" in error and tipo not in self.listados:
-                self.caidos[tipo] = "no"  # este clúster no sirve el recurso: el motor no existe aquí
+                self.ausentes.add(tipo)  # este clúster no sirve el recurso (Flux sin helm-controller, o sin Flux)
                 return self._publica()
             self.caidos[tipo] = (error.splitlines() or ["el watch se cerró"])[-1][:120]
             self._publica()
