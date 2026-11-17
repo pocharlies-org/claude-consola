@@ -51,9 +51,9 @@ esac
 
 # Descuento Alibaba (ventana y % de la píldora paseo-descuento; hora de facturación UTC+8)
 (
-  [[ ${id,,} == alibaba-* ]] || exit 0
-  pct=; [[ ${id,,} =~ (ds|deepseek) ]] && pct=50
-  [ -z "$pct" ] && [[ ${id,,} =~ (q3[78]|qwen) ]] && pct=40
+  [[ $id == alibaba-* ]] || exit 0
+  pct=; [[ $id =~ (ds|deepseek) ]] && pct=50
+  [ -z "$pct" ] && [[ $id =~ (q3[78]|qwen) ]] && pct=40
   [ -n "$pct" ] || exit 0
   t8=$(( $(date +%s) + 28800 )); h=$(( t8 / 3600 % 24 ))
   if [ "$h" -ge 22 ] || [ "$h" -lt 8 ]; then
@@ -92,7 +92,7 @@ esac
   [ -n "$dir" ] || exit 0
   url=$(git -C "$dir" remote get-url origin 2>/dev/null) || exit 0
   repo=$(sed -E 's#\.git$##; s#^.+[:/]([^/]+/[^/]+)$#\1#' <<<"$url")
-  case ${repo,,} in *flux*) motor=flux ;; *) motor=argocd ;; esac
+  case $repo in *flux*) motor=flux ;; *) motor=argocd ;; esac
   read -r est _ < "$ESTADO/cd-$motor.estado" 2>/dev/null || exit 0
   case "$est" in
     ok) ;;
