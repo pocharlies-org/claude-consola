@@ -5,7 +5,7 @@ Uno por host (flock en <estado>/vigia.lock; <estado> = ~/.cache/claude-consola/<
 - CD: un watch de Kubernetes por recurso — Applications de ArgoCD; Kustomizations, HelmReleases y GitRepositories de Flux — como el de
   paseo-argocd: lista inicial por sendInitialEvents con bookmark de fin, reanuda por resourceVersion, 410 relista. Escribe
   <estado>/cd-<motor> (`<url del repo>\t<app>\t<estado>` por app) solo cuando cambia lo que pinta la barra, y
-  <estado>/cd-<motor>.estado: `ok`, `caido <por qué>` o `no` (sin kubectl o el clúster no sirve ese recurso).
+  <estado>/cd-<motor>.estado: `ok`, `caido <por qué>` o `no` (sin kubectl o el clúster no sirve ninguno de sus recursos).
 - CI: una cola propia en el bus de Synapse (`webhook.github.received`, la misma entrada de GitHub que despierta al
   supervisor) con el usuario de pr-watch. Con cada evento de un repo relee con gh la PR de las ramas de ese repo que la
   barra está mirando (<estado>/ci/<clave>.rama) y la deja en <estado>/ci/<clave>; <estado>/ci.estado dice si hay bus.
