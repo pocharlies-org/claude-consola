@@ -99,7 +99,7 @@ esac
     [ "$est" = caido ] && caido=${caido:-$motor}
     [ "$est" = ok ] || continue # sin cliente del clúster o el clúster no sirve ese motor
     IFS=$'\t' read -r _ app state < <(awk -F'\t' -v r="$repo" '
-      tolower($1) ~ tolower(r) "(\\.git)?$" { if ($3 != "True" && $3 != "Synced/Healthy") { print; mal = 1; exit } if (!p) p = $0 }
+      tolower($1) ~ "[/:]" tolower(r) "(\\.git)?$" { if ($3 != "True" && $3 != "Synced/Healthy") { print; mal = 1; exit } if (!p) p = $0 }
       END { if (!mal && p) print p }' "$ESTADO/cd-$motor" 2>/dev/null) && { hallado=1; break; }
   done
   [ -n "$hallado" ] || { [ -z "$caido" ] || printf '🟡 %s sin conexión' "$caido"; exit 0; }

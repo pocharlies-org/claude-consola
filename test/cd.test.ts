@@ -28,6 +28,7 @@ test("el clúster decide: si Flux despliega el repo sale Flux aunque el nombre n
   assert.equal(cd({ flux: "ok", argocd: "ok" }, { flux, argocd: argo }), "🟡 apps Reconciling");
   assert.equal(cd({ flux: "no", argocd: "ok" }, { argocd: argo }), "🟢 app Synced/Healthy");
   assert.equal(cd({ flux: "ok", argocd: "ok" }, { flux: "https://github.com/org/otra\tx\tFalse\n", argocd: argo }), "🟢 app Synced/Healthy");
+  assert.equal(cd({ flux: "ok", argocd: "ok" }, { flux: "https://github.com/miorg/app\tx\tFalse\n", argocd: argo }), "🟢 app Synced/Healthy");
 });
 
 test("de varias apps del repo sale la primera que no está bien", () => {
