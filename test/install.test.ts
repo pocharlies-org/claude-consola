@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -46,4 +46,20 @@ test("con NEXUS_URL el TTL va en su propio hook Stop y la barra ya no la lleva",
   assert.equal(stop.filter((c: string) => c.includes("ttl-stop.ts")).length, 1);
   assert.match(stop.find((c: string) => c.includes("ttl-stop.ts")), /NEXUS_URL='http:\/\/127\.0\.0\.1:18098\/api\/session-routing'/);
   assert.doesNotMatch(settings.statusLine.command, /NEXUS_URL/);
+});
+
+test("reinstalar para el vigía de esta copia y no una shell que solo nombre su ruta", async () => {
+  const ruta = join(REPO, "console/vigia.py");
+  const vigia = spawn("sleep", ["60"], { argv0: `python3 ${ruta}`, stdio: "ignore" });
+  const shell = spawn("bash", ["-c", `sleep 60 # python3 ${ruta}`], { stdio: "ignore" });
+  const muerto = new Promise((ok) => vigia.on("exit", ok));
+  try {
+    execFileSync("bash", [join(REPO, "install/install.sh")], { env: { ...process.env, HOME: mkdtempSync(join(tmpdir(), "consola-inst-")), NEXUS_URL: "" } });
+    await muerto;
+    assert.equal(shell.exitCode, null);
+    assert.equal(shell.signalCode, null);
+  } finally {
+    vigia.kill();
+    shell.kill();
+  }
 });
