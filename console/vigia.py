@@ -12,6 +12,8 @@ Uno por host (flock en <estado>/vigia.lock; <estado> = ~/.cache/claude-consola/<
   La primera lectura de una rama la pide la barra con SIGUSR1. Sin bus no hay CI: la barra no la pinta, no la sondea.
 Reconectar un stream que se cierra (el API server y el broker los cortan) es el propio watch, no un reloj que relee.
 """
+from __future__ import annotations  # el python3 de Cloudblue es 3.9: las uniones `X | None` de las firmas no se evalúan
+
 import fcntl
 import json
 import os
