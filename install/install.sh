@@ -47,7 +47,8 @@ jq --arg sl "$sl_cmd" --arg sg "$sg_cmd" --arg tt "$tt_cmd" '
 sed -e "s#__PLUGIN_DIR__#$dir#g" -e "s#__SUGIERE_URL__#${SUGIERE_URL:-}#g" "$dir/commands/sugiere.md" > ~/.claude/commands/sugiere.md
 
 # Un vigía que ya corría sigue con el código de antes: se para y la barra arranca el nuevo en el siguiente repintado.
-pkill -f "$dir/console/vigia.py" 2>/dev/null || true
+# Anclado al comando del vigía: una shell cuya línea nombre la misma ruta no es él.
+pkill -f "^[^ ]*[Pp]ython[0-9.]* $dir/console/vigia.py" 2>/dev/null || true
 
 echo "instalado en $settings"
 echo "  statusLine: $sl_cmd"
